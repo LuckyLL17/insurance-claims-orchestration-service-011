@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildApp } from '../index';
+import { buildApp } from '../src/index';
 
 test('creates a claim with a historical policy snapshot and replays it', () => {
   const app = buildApp();

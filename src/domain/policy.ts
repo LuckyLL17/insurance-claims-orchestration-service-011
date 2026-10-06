@@ -18,10 +18,10 @@ export class PolicyCatalog {
   }
 
   snapshot(policyId: string, lossAt: string): PolicyVersion {
-    const at = iso(lossAt).valueOf();
+    const at = new Date(iso(lossAt)).getTime();
     const candidates = (this.versions.get(policyId) ?? []).filter((version) => {
-      const from = iso(version.effectiveFrom).valueOf();
-      const to = version.effectiveTo ? iso(version.effectiveTo).valueOf() : Number.POSITIVE_INFINITY;
+      const from = new Date(iso(version.effectiveFrom)).getTime();
+      const to = version.effectiveTo ? new Date(iso(version.effectiveTo)).getTime() : Number.POSITIVE_INFINITY;
       return at >= from && at < to;
     });
     const selected = candidates.at(-1);
