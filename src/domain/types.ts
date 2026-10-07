@@ -5,6 +5,7 @@ export type ClaimStatus =
   | 'ready_for_adjustment'
   | 'partially_paid'
   | 'settled'
+  | 'closed'
   | 'reopened'
   | 'rejected';
 
@@ -22,6 +23,12 @@ export type ClaimEventType =
   | 'payment.authorized'
   | 'payment.settled'
   | 'payment.reversed'
+  | 'payment.recovered'
+  | 'reserve.estimated'
+  | 'reserve.adjusted'
+  | 'reserve.confirmed'
+  | 'recovery.recorded'
+  | 'claim.closed'
   | 'claim.reopened'
   | 'claim.rejected';
 
