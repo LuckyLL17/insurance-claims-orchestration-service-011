@@ -10,7 +10,7 @@ export class ClaimService {
 
   create(input: ClaimReportedPayload, actor: string, key?: string): ClaimState {
     const id = newId('claim');
-    this.events.append(id, 'claim.reported', { ...input, lossAt: iso(input.lossAt), reportedAt: iso(input.reportedAt) }, actor, key);
+    this.events.append(id, 'claim.reported', { ...input, lossAt: iso(input.lossAt), reportedAt: iso(input.reportedAt) }, actor, key, input.reportedAt);
     this.events.append(id, 'policy.snapshot.created', { policy: this.policies.snapshot(input.policyId, input.lossAt), ruleSnapshot: this.rules.freeze() }, 'system', `policy:${id}`);
     return this.get(id);
   }
@@ -26,6 +26,14 @@ export class ClaimService {
   }
 
   get(id: string): ClaimState { return this.replay(id, this.events.list(id)); }
+
+  close(id: string, actor: string, key?: string): ClaimState {
+    const claim = this.get(id);
+    if (claim.status === 'rejected') throw new Error('rejected claim cannot be closed');
+    if (claim.status === 'settled') return claim;
+    // 幂等键携带当前版本：同一状态下的重复结案去重，重开后再次结案仍可生效
+    return this.addEvent(id, 'claim.closed', { closedAt: iso() }, actor, key ?? `close:${id}:${claim.version}`);
+  }
   replay(id: string, events: DomainEvent[]): ClaimState {
     const state = this.empty(id);
     for (const event of events.sort((a, b) => a.sequence - b.sequence)) this.apply(state, event);
@@ -48,7 +56,9 @@ export class ClaimService {
     if (event.type === 'survey.completed') { state.completedSurveys = [...new Set([...state.completedSurveys, payload.taskId])]; }
     if (event.type === 'risk.assessed') { state.riskSignals = payload.signals; state.riskScore = payload.score; }
     if (event.type === 'adjustment.approved') { state.approvedMinor = payload.approvedMinor; state.requiredEvidence = new Set(payload.requiredEvidence); state.status = 'ready_for_adjustment'; }
+    if (event.type === 'payment.authorized' || event.type === 'payment.recovered') { state.payments = [...state.payments, payload.payment]; }
     if (event.type === 'payment.settled' || event.type === 'payment.reversed') { state.payments = [...state.payments, payload.payment]; state.status = payload.payment.kind === 'reversal' ? 'reopened' : 'partially_paid'; }
+    if (event.type === 'claim.closed') state.status = 'settled';
     if (event.type === 'claim.reopened') state.status = 'reopened';
     if (event.type === 'claim.rejected') state.status = 'rejected';
     state.audit.push({ sequence: event.sequence, eventId: event.id, type: event.type, occurredAt: event.occurredAt, actor: event.actor, summary: `${event.type} accepted` });

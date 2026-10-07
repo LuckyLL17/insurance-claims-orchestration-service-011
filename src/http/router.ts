@@ -1,21 +1,23 @@
 import { IncomingMessage, ServerResponse } from 'node:http';
 import { ClaimService } from '../application/claim-service';
 import { PaymentService } from '../application/payment-service';
+import { ReserveService } from '../application/reserve-service';
 import { RiskService } from '../application/risk-service';
 import { TaskService } from '../application/task-service';
 import { ReplayService } from '../application/replay-service';
 import { RuleEngine } from '../domain/rules';
 
-export interface AppContext { claims: ClaimService; payments: PaymentService; risks: RiskService; tasks: TaskService; replay: ReplayService; rules: RuleEngine; }
+export interface AppContext { claims: ClaimService; payments: PaymentService; reserves: ReserveService; risks: RiskService; tasks: TaskService; replay: ReplayService; rules: RuleEngine; }
 const json = (res: ServerResponse, status: number, value: unknown) => { res.writeHead(status, { 'content-type': 'application/json; charset=utf-8' }); res.end(JSON.stringify(value, (_k, v) => v instanceof Set ? [...v] : v)); };
 const body = async (req: IncomingMessage): Promise<any> => { let data = ''; for await (const chunk of req) data += chunk; return data ? JSON.parse(data) : {}; };
 const parts = (url: string) => url.split('?')[0].split('/').filter(Boolean);
 
 export async function route(req: IncomingMessage, res: ServerResponse, app: AppContext): Promise<void> {
   try {
-    const method = req.method ?? 'GET'; const path = parts(req.url ?? '/'); const input = method === 'POST' ? await body(req) : {};
+    const method = req.method ?? 'GET'; const path = parts(req.url ?? '/'); const query = new URL(req.url ?? '/', 'http://localhost').searchParams; const input = method === 'POST' ? await body(req) : {};
     if (method === 'GET' && path[0] === 'health') return json(res, 200, { ok: true, service: 'insurance-claims-orchestration', now: new Date().toISOString() });
     if (method === 'POST' && path[0] === 'claims' && path.length === 1) return json(res, 201, app.claims.create({ ...input, loss: { ...input.loss, gross: Number(input.loss.gross) } }, 'api', req.headers['idempotency-key'] as string));
+    if (method === 'GET' && path[0] === 'reserves' && path[1] === 'summary') return json(res, 200, app.reserves.summary({ claimId: query.get('claimId') ?? undefined, from: query.get('from') ?? undefined, to: query.get('to') ?? undefined }));
     if (path[0] !== 'claims' || !path[1]) return json(res, 404, { error: 'route not found' });
     const id = path[1];
     if (method === 'GET' && path.length === 2) return json(res, 200, app.claims.get(id));
@@ -26,6 +28,16 @@ export async function route(req: IncomingMessage, res: ServerResponse, app: AppC
     if (method === 'GET' && path[2] === 'risk') return json(res, 200, { relatedClaims: app.risks.related(id), state: app.claims.get(id) });
     if (method === 'POST' && path[2] === 'payments') return json(res, 200, app.payments.settle(id, input, 'api'));
     if (method === 'POST' && path[2] === 'reversals') return json(res, 200, app.payments.reverse(id, input, 'api'));
+    if (method === 'POST' && path[2] === 'authorizations') return json(res, 200, app.payments.authorize(id, input, 'api'));
+    if (method === 'POST' && path[2] === 'recoveries') return json(res, 200, app.payments.recover(id, input, 'api'));
+    if (method === 'POST' && path[2] === 'closure') return json(res, 200, app.claims.close(id, 'api', req.headers['idempotency-key'] as string));
+    if (method === 'POST' && path[2] === 'reserves' && path[3] === 'adjust') return json(res, 200, app.reserves.adjust(id, input, 'api', req.headers['idempotency-key'] as string));
+    if (method === 'POST' && path[2] === 'liability' && path[3] === 'confirm') return json(res, 200, app.reserves.confirmLiability(id, input, 'api', req.headers['idempotency-key'] as string));
+    if (method === 'GET' && path[2] === 'reserves' && path[3] === 'evolution') return json(res, 200, app.reserves.evolution(id));
+    if (method === 'GET' && path[2] === 'reserves' && path[3] === 'summary') return json(res, 200, app.reserves.summary({ claimId: id, from: query.get('from') ?? undefined, to: query.get('to') ?? undefined }));
+    if (method === 'GET' && path[2] === 'reserves' && path.length === 3) return json(res, 200, app.reserves.current(id));
+    if (method === 'GET' && path[2] === 'journal' && path[4] === 'audit') return json(res, 200, app.reserves.entryAudit(id, path[3]));
+    if (method === 'GET' && path[2] === 'journal' && path.length === 3) return json(res, 200, app.reserves.journal(id));
     if (method === 'POST' && path[2] === 'tasks') return json(res, 201, app.tasks.create(id, input.kind));
     if (method === 'GET' && path[2] === 'tasks') return json(res, 200, app.tasks.list(id));
     if (method === 'POST' && path[2] === 'replay') return json(res, 200, app.replay.execute(id, input.until));

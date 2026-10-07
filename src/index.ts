@@ -1,6 +1,7 @@
 import { EventStore } from './application/event-store';
 import { ClaimService } from './application/claim-service';
 import { PaymentService } from './application/payment-service';
+import { ReserveService } from './application/reserve-service';
 import { RiskService } from './application/risk-service';
 import { TaskService } from './application/task-service';
 import { ReplayService } from './application/replay-service';
@@ -14,7 +15,7 @@ import { startServer } from './http/server';
 
 export function buildApp() {
   const events = new EventStore(); const policies = new PolicyCatalog(); const rules = new RuleEngine(); const claims = new ClaimService(events, policies, rules, new EvidenceLedger());
-  return { claims, payments: new PaymentService(claims, new PaymentLedger()), risks: new RiskService(claims, new RiskGraph()), tasks: new TaskService(claims, new TaskBoard()), replay: new ReplayService(events, claims), rules };
+  return { events, claims, payments: new PaymentService(claims, new PaymentLedger()), reserves: new ReserveService(claims, events), risks: new RiskService(claims, new RiskGraph()), tasks: new TaskService(claims, new TaskBoard()), replay: new ReplayService(events, claims), rules };
 }
 
 if (require.main === module) void startServer(buildApp());

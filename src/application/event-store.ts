@@ -13,5 +13,6 @@ export class EventStore {
     return event;
   }
   list(aggregateId: string): DomainEvent[] { return [...(this.events.get(aggregateId) ?? [])].sort((a, b) => a.sequence - b.sequence); }
+  aggregateIds(): string[] { return [...this.events.keys()]; }
   replace(aggregateId: string, events: DomainEvent[]): void { this.events.set(aggregateId, events.map((event, index) => ({ ...event, sequence: index + 1 }))); }
 }

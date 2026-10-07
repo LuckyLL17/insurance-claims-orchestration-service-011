@@ -19,9 +19,13 @@ export type ClaimEventType =
   | 'documents.received'
   | 'risk.assessed'
   | 'adjustment.approved'
+  | 'reserve.adjusted'
+  | 'liability.confirmed'
   | 'payment.authorized'
   | 'payment.settled'
   | 'payment.reversed'
+  | 'payment.recovered'
+  | 'claim.closed'
   | 'claim.reopened'
   | 'claim.rejected';
 
